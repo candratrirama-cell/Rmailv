@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RMAIL v20 - PT Bangga Karya Indonesia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+    <style>
+        :root { --txt: #000; --bg: #fff; }
+        .dark-mode { --txt: #fff; --bg: #0f172a; }
+        body { color: var(--txt); background-color: var(--bg); transition: 0.3s; height: 100dvh; overflow: hidden; font-family: 'Inter', sans-serif; }
+        .tab-content { display: none; height: 100%; overflow-y: auto; padding-bottom: 120px; }
+        .active-tab { display: block; }
+        .glass { backdrop-filter: blur(20px); background: rgba(255,255,255,0.85); }
+        .dark-mode .glass { background: rgba(15, 23, 42, 0.9); border-color: #334155; }
+        .chat-bubble { cursor: pointer; position: relative; transition: 0.2s; }
+        #menu-hapus { transition: 0.3s transform ease-in-out; transform: translateY(100%); z-index: 1000; }
+        #menu-hapus.show { transform: translateY(0); }
+        input, textarea { color: #000 !important; }
+        .dark-mode input, .dark-mode textarea { color: #fff !important; }
+    </style>
+</head>
+<body>
+
+    <div id="app" class="hidden flex flex-col h-full max-w-md mx-auto relative shadow-2xl bg-white dark:bg-slate-900">
+        <header class="p-4 flex justify-between items-center glass border-b sticky top-0 z-[100]">
+            <h2 class="text-2xl font-black text-blue-600 italic tracking-tighter">RMAIL</h2>
+            <button onclick="toggleDarkMode()" class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center">🌙</button>
+        </header>
+
+        <div id="tab-publik" class="tab-content active-tab p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-black text-lg uppercase tracking-tight">Pusat Data</h3>
+                <span id="badge-premium" class="hidden text-[8px] bg-blue-600 text-white px-2 py-1 rounded-lg font-bold">ADMIN</span>
+            </div>
+            
+            <div id="area-upload-publik" class="hidden mb-6 p-4 bg-blue-50 dark:bg-slate-800 rounded-[2rem] border-2 border-dashed border-blue-200">
+                <textarea id="pub-txt" class="w-full bg-transparent outline-none text-sm mb-3" placeholder="Tulis pengumuman..."></textarea>
+                <div class="flex items-center gap-2">
+                    <label class="bg-white dark:bg-slate-700 p-3 rounded-xl cursor-pointer shadow-sm text-xs font-bold">
+                        📎 File <input type="file" id="pub-file" class="hidden" onchange="previewFilePub(this)">
+                    </label>
+                    <span id="pub-file-name" class="text-[9px] opacity-50 truncate flex-1"></span>
+                    <button onclick="kirimPublik()" class="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold text-xs">POST</button>
+                </div>
+            </div>
+
+            <div id="feed-publik" class="space-y-4"></div>
+        </div>
+
+        <div id="tab-chats" class="tab-content p-4">
+            <div class="flex gap-2 mb-6">
+                <input type="text" id="cari-user" placeholder="Cari username..." class="flex-1 p-3 border rounded-2xl dark:bg-slate-800 dark:border-slate-700 outline-none text-sm">
+                <button onclick="mulaiChat()" class="bg-blue-600 text-white px-6 rounded-2xl font-bold text-sm">CHAT</button>
+            </div>
+            <div id="list-chat" class="space-y-3"></div>
+        </div>
+
+        <div id="tab-me" class="tab-content p-6 text-center">
+            <div class="relative w-24 h-24 mx-auto mb-4">
+                <img id="my-p-img" src="" class="w-full h-full rounded-[2rem] object-cover border-4 border-blue-600 bg-gray-200">
+                <label class="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-lg cursor-pointer"><input type="file" class="hidden" onchange="upFoto(this)">📷</label>
+            </div>
+            <h3 id="my-p-name" class="text-xl font-black uppercase">User</h3>
+            <p id="p-status-label" class="text-blue-500 font-bold text-[10px] tracking-widest uppercase mb-10">PT Bangga Karya Indonesia</p>
+            <button onclick="location.reload()" class="w-full p-4 bg-red-50 text-red-500 rounded-2xl font-bold text-xs uppercase">Logout</button>
+        </div>
+
+        <nav class="fixed bottom-0 left-0 right-0 max-w-md mx-auto glass border-t p-4 flex justify-around items-center z-[110] rounded-t-[2rem]">
+            <button onclick="switchTab('publik')" class="text-xl">📁</button>
+            <button onclick="switchTab('chats')" class="text-xl">💬</button>
+            <button onclick="switchTab('me')" class="text-xl">👤</button>
+        </nav>
+    </div>
+
+    <div id="win-chat" class="hidden fixed inset-0 z-[300] bg-white dark:bg-slate-900 flex flex-col">
+        <div class="p-4 border-b glass flex items-center gap-4">
+            <button onclick="tutupChat()" class="text-blue-600 text-2xl font-bold">✕</button>
+            <div class="font-black text-sm" id="chat-target-name">Target</div>
+        </div>
+        <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950"></div>
+        <div class="p-4 glass border-t flex items-center gap-2">
+            <input type="text" id="msg-input" placeholder="Tulis pesan..." class="flex-1 p-4 bg-gray-100 dark:bg-slate-800 rounded-2xl outline-none">
+            <button onclick="kirimPesanChat()" class="bg-blue-600 text-white w-14 h-14 rounded-2xl font-bold shadow-xl">➤</button>
+        </div>
+    </div>
+
+    <div id="overlay-hapus" onclick="closeHapusMenu()" class="hidden fixed inset-0 bg-black/50 z-[500]"></div>
+    <div id="menu-hapus" class="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white dark:bg-slate-900 p-6 rounded-t-[2.5rem]">
+        <p class="font-black text-center mb-6 text-sm">Hapus data ini?</p>
+        <button id="btn-konfirmasi-hapus" class="w-full py-4 bg-red-500 text-white rounded-2xl font-bold mb-3">HAPUS PERMANEN</button>
+        <button onclick="closeHapusMenu()" class="w-full py-4 bg-gray-100 dark:bg-slate-800 rounded-2xl font-bold text-sm">BATAL</button>
+    </div>
+
+    <div id="halaman-login" class="flex items-center justify-center h-full px-8 bg-blue-600">
+        <div class="bg-white p-10 rounded-[3rem] w-full max-w-sm text-center shadow-2xl">
+            <h1 class="text-4xl font-black text-blue-600 italic mb-2 tracking-tighter">RMAIL</h1>
+            <p class="text-[9px] font-bold text-gray-400 mb-8 uppercase">PT Bangga Karya Indonesia</p>
+            <input type="text" id="log-user" placeholder="Username" class="w-full p-4 border rounded-2xl mb-3 outline-none">
+            <input type="password" id="log-pass" placeholder="Password" class="w-full p-4 border rounded-2xl mb-3 outline-none">
+            <input type="text" id="log-kode" placeholder="Kode Premium (Opsional)" class="w-full p-4 border rounded-2xl mb-6 bg-blue-50 outline-none">
+            <button onclick="auth()" id="btn-login" class="w-full bg-blue-600 text-white font-black py-4 rounded-2xl shadow-lg">MASUK / DAFTAR</button>
+        </div>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDwT0SeUkimENH3yTg2jzf_atlyFfh3_nU",
+            authDomain: "rmail-68719.firebaseapp.com",
+            databaseURL: "https://rmail-68719-default-rtdb.asia-southeast1.firebasedatabase.app/",
+            projectId: "rmail-68719",
+            storageBucket: "rmail-68719.firebasestorage.app",
+            messagingSenderId: "408858505940",
+            appId: "1:408858505940:web:2077a7dd9ef9b6cd5d8141"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let me = null, isDark = false, filePub = null, filePubName = "";
+        let pendingId = "", pendingPath = "", chatTarget = "";
+
+        function toggleDarkMode() { isDark = !isDark; document.body.classList.toggle('dark-mode'); }
+        function switchTab(t) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active-tab'));
+            document.getElementById('tab-' + t).classList.add('active-tab');
+        }
+
+        // --- FIXED LOGIN LOGIC ---
+        function auth() {
+            const u = document.getElementById('log-user').value.toLowerCase().trim();
+            const p = document.getElementById('log-pass').value;
+            const k = document.getElementById('log-kode').value;
+            const btn = document.getElementById('btn-login');
+
+            if(!u || !p) return alert("Username & Sandi wajib diisi!");
+            btn.innerText = "PROSES..."; btn.disabled = true;
+
+            const userRef = db.ref('users/' + u);
+            userRef.once('value').then(s => {
+                if(s.exists()){
+                    const data = s.val();
+                    if(data.password === p) {
+                        masuk(data);
+                    } else {
+                        alert("Sandi salah!");
+                        btn.innerText = "MASUK / DAFTAR"; btn.disabled = false;
+                    }
+                } else {
+                    // BUAT AKUN BARU
+                    const dataBaru = { username: u, password: p, premium: (k === "90admin"), photo: "" };
+                    userRef.set(dataBaru).then(() => {
+                        alert("Akun Berhasil Dibuat!");
+                        masuk(dataBaru);
+                    });
+                }
+            }).catch(e => {
+                alert("Koneksi Error: " + e.message);
+                btn.innerText = "MASUK / DAFTAR"; btn.disabled = false;
+            });
+        }
+
+        function masuk(data) {
+            me = data;
+            document.getElementById('halaman-login').classList.add('hidden');
+            document.getElementById('app').classList.remove('hidden');
+            document.getElementById('my-p-name').innerText = data.username;
+            document.getElementById('p-status-label').innerText = data.premium ? "PREMIUM ADMIN" : "REGULER USER";
+            document.getElementById('my-p-img').src = data.photo || `https://ui-avatars.com/api/?name=${data.username}&background=0D8ABC&color=fff`;
+            
+            if(data.premium) {
+                document.getElementById('area-upload-publik').classList.remove('hidden');
+                document.getElementById('badge-premium').classList.remove('hidden');
+            }
+            muatPublik(); muatChatList();
+        }
+
+        // --- UPLOAD PUBLIK ---
+        function previewFilePub(input) {
+            const f = input.files[0];
+            if(f) {
+                filePubName = f.name;
+                const r = new FileReader();
+                r.onload = e => { filePub = e.target.result; document.getElementById('pub-file-name').innerText = filePubName; };
+                r.readAsDataURL(f);
+            }
+        }
+
+        function kirimPublik() {
+            const t = document.getElementById('pub-txt').value;
+            if(!t && !filePub) return;
+            db.ref('broadcast').push({ 
+                owner: me.username, text: t, file: filePub, fileName: filePubName, time: new Date().toLocaleString() 
+            });
+            document.getElementById('pub-txt').value = "";
+            filePub = null; document.getElementById('pub-file-name').innerText = "";
+        }
+
+        function muatPublik() {
+            db.ref('broadcast').on('value', s => {
+                const feed = document.getElementById('feed-publik'); feed.innerHTML = "";
+                s.forEach(child => {
+                    const d = child.val();
+                    const isOwner = d.owner === me.username;
+                    const fileHtml = d.file ? `<div class="mt-3 p-3 bg-blue-600 text-white rounded-xl flex justify-between items-center"><span class="text-[9px] font-bold truncate flex-1 mr-2">${d.fileName}</span><a href="${d.file}" download="${d.fileName}" class="bg-white text-blue-600 px-3 py-1 rounded-lg text-[10px] font-black">SAVE</a></div>` : "";
+                    feed.innerHTML += `
+                        <div class="p-4 bg-gray-50 dark:bg-slate-800 rounded-3xl chat-bubble shadow-sm" onclick="${isOwner ? `openHapusMenu('${child.key}', 'broadcast')` : ''}">
+                            <p class="text-[10px] font-black text-blue-600 mb-1 uppercase">@${d.owner}</p>
+                            <p class="text-sm opacity-80">${d.text}</p>
+                            ${fileHtml}
+                        </div>`;
+                });
+            });
+        }
+
+        // --- CUSTOM HAPUS UI ---
+        function openHapusMenu(id, path) {
+            pendingId = id; pendingPath = path;
+            document.getElementById('overlay-hapus').classList.remove('hidden');
+            document.getElementById('menu-hapus').classList.add('show');
+        }
+
+        function closeHapusMenu() {
+            document.getElementById('overlay-hapus').classList.add('hidden');
+            document.getElementById('menu-hapus').classList.remove('show');
+        }
+
+        document.getElementById('btn-konfirmasi-hapus').onclick = function() {
+            const path = (pendingPath === 'broadcast') ? 'broadcast/' + pendingId : 'messages/' + pendingPath + '/' + pendingId;
+            db.ref(path).remove();
+            closeHapusMenu();
+        };
+
+        // --- CHAT ---
+        function mulaiChat() {
+            const t = document.getElementById('cari-user').value.toLowerCase().trim();
+            if(t && t !== me.username) bukaChat(t);
+        }
+
+        function bukaChat(t) {
+            chatTarget = t;
+            document.getElementById('win-chat').classList.remove('hidden');
+            document.getElementById('chat-target-name').innerText = t;
+            muatPesan();
+        }
+
+        function tutupChat() { document.getElementById('win-chat').classList.add('hidden'); }
+
+        function kirimPesanChat() {
+            const t = document.getElementById('msg-input').value; if(!t) return;
+            const cid = [me.username, chatTarget].sort().join("_");
+            db.ref('messages/'+cid).push({ sender: me.username, text: t });
+            db.ref('chat_lists/'+me.username+'/'+chatTarget).set(true);
+            db.ref('chat_lists/'+chatTarget+'/'+me.username).set(true);
+            document.getElementById('msg-input').value = "";
+        }
+
+        function muatPesan() {
+            const cid = [me.username, chatTarget].sort().join("_");
+            db.ref('messages/'+cid).on('value', s => {
+                const box = document.getElementById('chat-box'); box.innerHTML = "";
+                s.forEach(c => {
+                    const isMe = c.val().sender === me.username;
+                    box.innerHTML += `<div class="flex ${isMe ? 'justify-end' : 'justify-start'}">
+                        <div onclick="${isMe ? `openHapusMenu('${c.key}', '${cid}')` : ''}" 
+                             class="chat-bubble ${isMe?'bg-blue-600 text-white rounded-l-2xl rounded-tr-2xl':'bg-white dark:bg-slate-800 rounded-r-2xl rounded-tl-2xl'} p-4 max-w-[80%] text-sm shadow-sm">
+                            ${c.val().text}
+                        </div></div>`;
+                });
+                box.scrollTop = box.scrollHeight;
+            });
+        }
+
+        function muatChatList() {
+            db.ref('chat_lists/'+me.username).on('value', s => {
+                const l = document.getElementById('list-chat'); l.innerHTML = "";
+                s.forEach(c => {
+                    l.innerHTML += `<div onclick="bukaChat('${c.key}')" class="p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl font-bold text-sm shadow-sm">${c.key}</div>`;
+                });
+            });
+        }
+
+        function upFoto(input) {
+            const r = new FileReader(); r.onload = e => {
+                document.getElementById('my-p-img').src = e.target.result;
+                db.ref('users/'+me.username+'/photo').set(e.target.result);
+            }; r.readAsDataURL(input.files[0]);
+        }
+    </script>
+</body>
+</html>
