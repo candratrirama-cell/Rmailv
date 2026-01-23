@@ -2,92 +2,89 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Admin PT Bangga Karya</title>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.17.1/firebase-database-compat.js"></script>
-    <style>
-        body { font-family: sans-serif; background: #f0f2f5; padding: 20px; }
-        .header { background: white; padding: 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .btn-status { padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .on { background: #28a745; color: white; }
-        .off { background: #dc3545; color: white; }
-        table { width: 100%; background: white; border-collapse: collapse; border-radius: 12px; overflow: hidden; }
-        th { background: #fe2c55; color: white; padding: 15px; text-align: left; }
-        td { padding: 12px; border-bottom: 1px solid #eee; }
-        button { padding: 8px; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
-        .btn-p { background: #ffc107; }
-        .btn-b { background: #00f2ea; }
-        .btn-g { background: #666; color: white; }
-        .btn-del { background: #ff4d4d; color: white; float: right; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BKI Cloud | PT Bangga Karya Indonesia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
+<body class="h-screen flex flex-col bg-black text-white overflow-hidden">
 
-<div class="header">
-    <div>
-        <h2 style="margin:0">Admin Panel Likes</h2>
-        <span>PT Bangga Karya Indonesia</span>
+    <nav class="p-4 border-b border-white/10 flex justify-between items-center bg-zinc-900">
+        <div class="flex items-center gap-2">
+            <div class="bg-white text-black px-2 py-1 rounded font-bold italic">BKI</div>
+            <span class="font-bold">CLOUD DEPLOYER</span>
+        </div>
+        <button onclick="terbitkan()" id="btn" class="bg-blue-600 px-6 py-2 rounded-lg font-bold hover:bg-blue-500 transition-all">TERBITKAN</button>
+    </nav>
+
+    <main class="flex-1 flex flex-col md:flex-row p-4 gap-4 overflow-hidden">
+        <textarea id="inputKode" class="flex-1 bg-zinc-950 border border-white/10 rounded-xl p-4 text-blue-400 font-mono text-sm outline-none" placeholder="Tempel kode HTML Bapak di sini..."></textarea>
+        <iframe id="preview" class="flex-1 bg-white rounded-xl shadow-2xl"></iframe>
+    </main>
+
+    <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
+        <div class="bg-zinc-900 w-full max-w-md rounded-3xl p-8 text-center border border-white/10 shadow-2xl">
+            <h2 class="text-2xl font-bold mb-4 text-green-500">✅ Website Siap!</h2>
+            <p class="text-white/60 text-sm mb-6">Salin link di bawah ini. Jika terlalu panjang, gunakan situs <b>bit.ly</b> untuk memperpendeknya agar tidak error.</p>
+            
+            <textarea id="linkHasil" readonly class="w-full bg-black border border-white/20 rounded-xl p-4 text-blue-400 text-xs mb-6 h-24 outline-none"></textarea>
+            
+            <div class="flex flex-col gap-3">
+                <button onclick="copyKeClipboard()" class="w-full py-4 bg-white text-black rounded-xl font-bold">SALIN LINK</button>
+                <button onclick="tutupModal()" class="w-full py-4 bg-white/5 rounded-xl text-sm">TUTUP</button>
+            </div>
+        </div>
     </div>
-    <div>
-        <button class="btn-status on" onclick="setStatus('ON')">SISTEM ON</button>
-        <button class="btn-status off" onclick="setStatus('OFF')">SISTEM OFF</button>
-    </div>
-</div>
 
-<table>
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Link Video</th>
-            <th>Status</th>
-            <th>Aksi Admin</th>
-        </tr>
-    </thead>
-    <tbody id="adminTable"></tbody>
-</table>
+    <script>
+        const input = document.getElementById('inputKode');
+        const view = document.getElementById('preview');
 
-<script>
-    const firebaseConfig = {
-        apiKey: "AIzaSyCTvPUfC1xSlup78dtXfs0AFogOUheAi-E",
-        authDomain: "tikfoll.firebaseapp.com",
-        projectId: "tikfoll",
-        databaseURL: "https://tikfoll-default-rtdb.asia-southeast1.firebasedatabase.app/",
-        storageBucket: "tikfoll.firebasestorage.app",
-        messagingSenderId: "210219887620",
-        appId: "1:210219887620:web:ad7c29c37ff0f74f3ed951"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
-    function setStatus(s) { db.ref('system_status').set(s); }
-
-    db.ref('orders').on('value', (snapshot) => {
-        const tbody = document.getElementById('adminTable');
-        tbody.innerHTML = '';
-        let items = [];
-        snapshot.forEach(c => { items.push({id: c.key, ...c.val()}); });
-        items.sort((a,b) => b.time - a.time);
-
-        items.forEach(val => {
-            tbody.innerHTML += `
-                <tr>
-                    <td>${val.id}</td>
-                    <td><a href="${val.link}" target="_blank">Lihat Video</a></td>
-                    <td><b>${val.status}</b></td>
-                    <td>
-                        <button class="btn-p" onclick="upd('${val.id}', 'Dalam Proses')">PROSES</button>
-                        <button class="btn-b" onclick="upd('${val.id}', 'Berhasil')">BERHASIL</button>
-                        <button class="btn-g" onclick="upd('${val.id}', 'Gagal')">GAGAL</button>
-                        <button class="btn-del" onclick="hapus('${val.id}')">HAPUS</button>
-                    </td>
-                </tr>
-            `;
+        // Live Preview
+        input.addEventListener('input', () => {
+            const doc = view.contentWindow.document;
+            doc.open(); doc.write(input.value); doc.close();
         });
-    });
 
-    function upd(id, s) { db.ref('orders/' + id).update({ status: s }); }
-    function hapus(id) { if(confirm('Hapus data?')) db.ref('orders/' + id).remove(); }
-</script>
+        function terbitkan() {
+            const kode = input.value.trim();
+            if(!kode) return alert("Kodenya diisi dulu Pak Bos!");
+
+            // Enkripsi Kode
+            const encoded = btoa(encodeURIComponent(kode));
+            // Gunakan format link yang lebih aman untuk Netlify
+            const finalUrl = window.location.origin + "/?v=" + encoded;
+
+            document.getElementById('linkHasil').value = finalUrl;
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function copyKeClipboard() {
+            const copyText = document.getElementById("linkHasil");
+            copyText.select();
+            document.execCommand("copy");
+            alert("Link Berhasil Disalin! Silakan perpendek di Bitly atau langsung kirim.");
+        }
+
+        function tutupModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        // Jalankan website jika ada data di URL
+        window.onload = () => {
+            const p = new URLSearchParams(window.location.search);
+            if(p.has('v')) {
+                try {
+                    const h = decodeURIComponent(atob(p.get('v')));
+                    document.open(); document.write(h); document.close();
+                } catch(e) {
+                    document.body.innerHTML = "<h1 style='color:white; text-align:center;'>Maaf Pak, Data terlalu besar untuk link gratisan. Kurangi ukuran kodenya sedikit.</h1>";
+                }
+            } else {
+                input.value = "<h1>Selamat Datang di BKI Cloud</h1><p>Edit kode ini lalu klik Terbitkan.</p>";
+                const doc = view.contentWindow.document;
+                doc.open(); doc.write(input.value); doc.close();
+            }
+        }
+    </script>
 </body>
 </html>
